@@ -90,14 +90,25 @@ function createHeader(color) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ cover: { color: color, size: 'full' } })
           });
-          /* 3. Attach the board's same-color label, if there is one. */
+          /* 3. Find-or-create the (color + name) label, then attach it.
+                Label name = header text in Title Case (e.g. CHECKOUT -> Checkout). */
+          var labelName = name.toLowerCase().replace(/\b[a-z]/g, function (m) { return m.toUpperCase(); });
           var labelReq = t.board('id').then(function (board) {
-            return fetch('https://api.trello.com/1/boards/' + board.id + '/labels?' + auth)
+            return fetch('https://api.trello.com/1/boards/' + board.id + '/labels?limit=1000&' + auth)
               .then(function (r) { return r.json(); })
               .then(function (labels) {
-                var match = labels.find(function (l) { return l.color === color; });
-                if (!match) return;
-                return fetch('https://api.trello.com/1/cards/' + card.id + '/idLabels?value=' + match.id + '&' + auth, { method: 'POST' });
+                var match = labels.find(function (l) {
+                  return l.color === color && (l.name || '').toLowerCase() === labelName.toLowerCase();
+                });
+                if (match) return match;
+                return fetch('https://api.trello.com/1/labels?idBoard=' + board.id +
+                             '&name=' + encodeURIComponent(labelName) + '&color=' + color + '&' + auth,
+                             { method: 'POST' })
+                  .then(function (r) { return r.json(); });
+              })
+              .then(function (label) {
+                if (!label || !label.id) return;
+                return fetch('https://api.trello.com/1/cards/' + card.id + '/idLabels?value=' + label.id + '&' + auth, { method: 'POST' });
               });
           });
           return Promise.all([coverReq, labelReq]);

@@ -23,7 +23,7 @@
   <label for="list">List to sort</label>
   <select id="list"></select>
   <button id="go" class="primary">Sort by epic</button>
-  <div class="hint">Groups cards into label-color sections (Homepage → Category → Product) with each section's header card on top.</div>
+  <div class="hint">Groups cards into sections by label (color + name) with each section's header card on top. Unlabeled cards go last.</div>
 
 <script>
 var APP_KEY  = 'e82ae5688936d7c67aef05819e8fb1c9';
@@ -31,21 +31,39 @@ var APP_NAME = 'Header & Page Sort';
 
 var t = window.TrelloPowerUp.iframe({ appKey: APP_KEY, appName: APP_NAME });
 
-var SECTION_ORDER = ['green', 'yellow', 'purple', 'orange', 'red', 'blue', 'sky', 'lime', 'pink', 'black'];
+var COLOR_ORDER = ['green', 'yellow', 'purple', 'orange', 'red', 'blue', 'sky', 'lime', 'pink', 'black'];
 
 function isHeader(card) {
   var n = (card.name || '').trim();
   return n.length > 0 && n.length <= 40 && n === n.toUpperCase() && /[A-Z]/.test(n);
 }
-function sectionOf(card) {
-  var colors = (card.labels || []).map(function (l) { return l.color; });
-  for (var i = 0; i < SECTION_ORDER.length; i++) {
-    if (colors.indexOf(SECTION_ORDER[i]) !== -1) return i;
-  }
-  return SECTION_ORDER.length;
+function colorRank(color) {
+  var base = (color || '').replace(/_(light|dark)$/, '');
+  var i = COLOR_ORDER.indexOf(base);
+  return i === -1 ? COLOR_ORDER.length : i;
+}
+function primaryLabel(card) {
+  var labels = (card.labels || []).slice();
+  if (!labels.length) return null;
+  labels.sort(function (a, b) {
+    var ca = colorRank(a.color), cb = colorRank(b.color);
+    if (ca !== cb) return ca - cb;
+    return (a.name || '').toLowerCase().localeCompare((b.name || '').toLowerCase());
+  });
+  return labels[0];
+}
+function sectionCompare(a, b) {
+  var la = primaryLabel(a), lb = primaryLabel(b);
+  var ca = la ? colorRank(la.color) : 999, cb = lb ? colorRank(lb.color) : 999;
+  if (ca !== cb) return ca - cb;
+  var na = la ? (la.name || '').toLowerCase() : '';
+  var nb = lb ? (lb.name || '').toLowerCase() : '';
+  if (na !== nb) return na.localeCompare(nb);
+  var ha = isHeader(a) ? 0 : 1, hb = isHeader(b) ? 0 : 1;
+  if (ha !== hb) return ha - hb;
+  return a.pos - b.pos;
 }
 
-/* Populate lists; preselect the one named "Backlog" if present. */
 var sel = document.getElementById('list');
 t.lists('id', 'name').then(function (lists) {
   lists.forEach(function (l) {
@@ -73,14 +91,7 @@ document.getElementById('go').addEventListener('click', function () {
       return fetch('https://api.trello.com/1/lists/' + listId + '/cards?fields=name,pos,labels&' + auth)
         .then(function (r) { return r.json(); })
         .then(function (cards) {
-          var sorted = cards.slice().sort(function (a, b) {
-            var sa = sectionOf(a), sb = sectionOf(b);
-            if (sa !== sb) return sa - sb;
-            var ha = isHeader(a) ? 0 : 1, hb = isHeader(b) ? 0 : 1;
-            if (ha !== hb) return ha - hb;
-            return a.pos - b.pos;
-          });
-          /* Re-position sequentially, one request at a time. */
+          var sorted = cards.slice().sort(sectionCompare);
           var chain = Promise.resolve();
           sorted.forEach(function (card, i) {
             chain = chain.then(function () {

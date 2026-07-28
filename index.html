@@ -9,46 +9,62 @@
 <script>
 /* ============================================================
    Header & Page Sort — a tiny Trello Power-Up
-   1) "Add header" board button: creates a colored full-cover
-      header card via a popup (name + color), no manual steps.
-   2) "Page order" list sorter: sorts a list into label-color
-      sections with the header card on top of each section.
-   Setup: paste your Trello API key below (see README).
+   1) "Add header" board button: colored full-cover header card,
+      finds-or-creates the matching (color+name) label.
+   2) "Sort Backlog by Epic" board button + "Section order" list
+      sorter: sections keyed by label color+name pair, header on
+      top of each section, unlabeled cards last.
+   3) Live badge on header cards: count of cards in its section.
    ============================================================ */
 
 var APP_KEY  = 'e82ae5688936d7c67aef05819e8fb1c9';
 var APP_NAME = 'Header & Page Sort';
 
-/* Section order = label color order. Adjust to taste. */
-var SECTION_ORDER = ['green', 'yellow', 'purple', 'orange', 'red', 'blue', 'sky', 'lime', 'pink', 'black'];
+var COLOR_ORDER = ['green', 'yellow', 'purple', 'orange', 'red', 'blue', 'sky', 'lime', 'pink', 'black'];
 
-/* A "header" is a short card whose name is ALL CAPS. */
 function isHeader(card) {
   var n = (card.name || '').trim();
   return n.length > 0 && n.length <= 40 && n === n.toUpperCase() && /[A-Z]/.test(n);
 }
 
-function sectionOf(card) {
-  var colors = (card.labels || []).map(function (l) { return l.color; });
-  for (var i = 0; i < SECTION_ORDER.length; i++) {
-    if (colors.indexOf(SECTION_ORDER[i]) !== -1) return i;
-  }
-  return SECTION_ORDER.length; /* unlabeled cards sink to the bottom */
+function colorRank(color) {
+  var base = (color || '').replace(/_(light|dark)$/, '');
+  var i = COLOR_ORDER.indexOf(base);
+  return i === -1 ? COLOR_ORDER.length : i;
+}
+
+/* Primary label of a card = its label that sorts first by (color, name). */
+function primaryLabel(card) {
+  var labels = (card.labels || []).slice();
+  if (!labels.length) return null;
+  labels.sort(function (a, b) {
+    var ca = colorRank(a.color), cb = colorRank(b.color);
+    if (ca !== cb) return ca - cb;
+    return (a.name || '').toLowerCase().localeCompare((b.name || '').toLowerCase());
+  });
+  return labels[0];
+}
+
+/* Compare two cards into (color, name) sections; header tops its section. */
+function sectionCompare(a, b) {
+  var la = primaryLabel(a), lb = primaryLabel(b);
+  var ca = la ? colorRank(la.color) : 999, cb = lb ? colorRank(lb.color) : 999;
+  if (ca !== cb) return ca - cb;
+  var na = la ? (la.name || '').toLowerCase() : '';
+  var nb = lb ? (lb.name || '').toLowerCase() : '';
+  if (na !== nb) return na.localeCompare(nb);
+  var ha = isHeader(a) ? 0 : 1, hb = isHeader(b) ? 0 : 1;
+  if (ha !== hb) return ha - hb;
+  return a.pos - b.pos;
 }
 
 window.TrelloPowerUp.initialize({
 
   'list-sorters': function (t) {
     return [{
-      text: 'Page order (headers on top)',
+      text: 'Section order (headers on top)',
       callback: function (t, opts) {
-        var sorted = opts.cards.slice().sort(function (a, b) {
-          var sa = sectionOf(a), sb = sectionOf(b);
-          if (sa !== sb) return sa - sb;                     /* group by section color   */
-          var ha = isHeader(a) ? 0 : 1, hb = isHeader(b) ? 0 : 1;
-          if (ha !== hb) return ha - hb;                     /* header tops its section  */
-          return a.pos - b.pos;                              /* keep existing order else */
-        });
+        var sorted = opts.cards.slice().sort(sectionCompare);
         return { sortedIds: sorted.map(function (c) { return c.id; }) };
       }
     }];
@@ -62,11 +78,7 @@ window.TrelloPowerUp.initialize({
       },
       text: 'Add header',
       callback: function (t) {
-        return t.popup({
-          title: 'Add a header card',
-          url: './add-header.html',
-          height: 260
-        });
+        return t.popup({ title: 'Add a header card', url: './add-header.html', height: 260 });
       }
     }, {
       icon: {
@@ -75,13 +87,33 @@ window.TrelloPowerUp.initialize({
       },
       text: 'Sort Backlog by Epic',
       callback: function (t) {
-        return t.popup({
-          title: 'Sort Backlog by Epic',
-          url: './sort-list.html',
-          height: 190
-        });
+        return t.popup({ title: 'Sort Backlog by Epic', url: './sort-list.html', height: 190 });
       }
     }];
+  },
+
+  'card-badges': function (t) {
+    return t.card('name', 'labels').then(function (card) {
+      if (!isHeader(card)) return [];
+      var label = primaryLabel(card);
+      if (!label) return [];
+      return [{
+        dynamic: function (t2) {
+          return Promise.all([
+            t2.card('id', 'idList'),
+            t2.cards('id', 'name', 'labels', 'idList')
+          ]).then(function (res) {
+            var me = res[0], cards = res[1];
+            var n = cards.filter(function (c) {
+              if (c.idList !== me.idList || c.id === me.id) return false;
+              if (isHeader(c)) return false;
+              return (c.labels || []).some(function (l) { return l.id === label.id; });
+            }).length;
+            return { text: n + ' in section', color: n > 0 ? 'blue' : null, refresh: 30 };
+          });
+        }
+      }];
+    });
   }
 
 }, {
