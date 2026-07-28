@@ -35,6 +35,7 @@ var COLOR_ORDER = ['green', 'yellow', 'purple', 'orange', 'red', 'blue', 'sky', 
 
 function stripCount(name) {
   return (name || '').trim()
+    .replace(/\s*\|\s*\d+$/, '')
     .replace(/\s\(\d+\s+Stor(?:y|ies)\)$/, '')
     .replace(/\s·\s\d+$/, '');
 }
@@ -236,7 +237,7 @@ document.getElementById('go').addEventListener('click', function () {
               var base = stripCount(h.name);
               if (!lbl) base = 'NO LABEL';
               if (base === 'EPIC LABEL UNASSIGNED') base = 'NO LABEL';
-              var newName = base + ' (' + n + ' ' + (n === 1 ? 'Story' : 'Stories') + ')';
+              var newName = base + '  |  ' + n;
               if (newName !== h.name) {
                 h.name = newName;
                 renames = renames.then(function () {
