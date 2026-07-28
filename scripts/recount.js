@@ -18,7 +18,8 @@ const prim = c => {
   return l[0] || null;
 };
 (async () => {
-  const cards = await (await fetch(`https://api.trello.com/1/boards/${BOARD}/cards?fields=name,idList,labels&${AUTH}`)).json();
+  const all = await (await fetch(`https://api.trello.com/1/boards/${BOARD}/cards?fields=name,idList,labels,isTemplate&${AUTH}`)).json();
+  const cards = all.filter(c => !c.isTemplate); /* template cards don't count */
   const byList = {};
   for (const c of cards) (byList[c.idList] ??= []).push(c);
   for (const list of Object.values(byList)) {
@@ -39,4 +40,3 @@ const prim = c => {
     }
   }
 })().catch(e => { console.error(e); process.exit(1); });
-
