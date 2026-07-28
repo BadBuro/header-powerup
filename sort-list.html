@@ -34,7 +34,7 @@ var t = window.TrelloPowerUp.iframe({ appKey: APP_KEY, appName: APP_NAME });
 var COLOR_ORDER = ['green', 'yellow', 'purple', 'orange', 'red', 'blue', 'sky', 'lime', 'pink', 'black'];
 
 function isHeader(card) {
-  var n = (card.name || '').trim();
+  var n = (card.name || '').trim().replace(/\s·\s\d+$/, ''); /* ignore count suffix */
   return n.length > 0 && n.length <= 40 && n === n.toUpperCase() && /[A-Z]/.test(n);
 }
 function colorRank(color) {
@@ -210,8 +210,35 @@ document.getElementById('go').addEventListener('click', function () {
             });
           }
 
+          /* --- Update header titles with section counts ("HOMEPAGE · 8"). --- */
+          function withCounts() {
+            var renames = Promise.resolve();
+            cards.forEach(function (h) {
+              if (!isHeader(h)) return;
+              var lbl = primaryLabel(h);
+              var n = cards.filter(function (c) {
+                if (isHeader(c)) return false;
+                var cl = primaryLabel(c);
+                if (lbl) {
+                  return cl && baseColor(cl.color) === baseColor(lbl.color) &&
+                         (cl.name || '').toLowerCase() === (lbl.name || '').toLowerCase();
+                }
+                return !cl;
+              }).length;
+              var base = (h.name || '').trim().replace(/\s·\s\d+$/, '');
+              var newName = base + ' · ' + n;
+              if (newName !== h.name) {
+                h.name = newName;
+                renames = renames.then(function () {
+                  return fetch('https://api.trello.com/1/cards/' + h.id + '?name=' + encodeURIComponent(newName) + '&' + auth, { method: 'PUT' });
+                });
+              }
+            });
+            return renames;
+          }
+
           /* --- Then sort everything into place. --- */
-          return creations.then(function () {
+          return creations.then(withCounts).then(function () {
             var sorted = cards.slice().sort(sectionCompare);
             var chain = Promise.resolve();
             sorted.forEach(function (card, i) {

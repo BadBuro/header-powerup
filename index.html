@@ -23,7 +23,7 @@ var APP_NAME = 'Header & Page Sort';
 var COLOR_ORDER = ['green', 'yellow', 'purple', 'orange', 'red', 'blue', 'sky', 'lime', 'pink', 'black'];
 
 function isHeader(card) {
-  var n = (card.name || '').trim();
+  var n = (card.name || '').trim().replace(/\s·\s\d+$/, ''); /* ignore count suffix */
   return n.length > 0 && n.length <= 40 && n === n.toUpperCase() && /[A-Z]/.test(n);
 }
 
@@ -115,10 +115,7 @@ window.TrelloPowerUp.initialize({
           }];
         });
       })
-      .catch(function (e) {
-        /* Diagnostic: surface the failure as a red badge. */
-        return [{ text: 'ERR ' + String((e && e.message) || e).slice(0, 30), color: 'red' }];
-      });
+      .catch(function () { return []; });
   }
 
 }, {
