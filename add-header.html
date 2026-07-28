@@ -7,7 +7,13 @@
   <style>
     body { font-family: -apple-system, 'Segoe UI', Roboto, Arial, sans-serif; margin: 12px; font-size: 14px; }
     label { display: block; margin: 10px 0 4px; font-weight: 600; }
-    input, select { width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid #dfe1e6; border-radius: 4px; font-size: 14px; height: 38px; background: #fff; }
+    input, select { width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid #dfe1e6; border-radius: 4px; font-size: 14px; height: 38px; background: #fff; color: #172b4d; }
+    select {
+      appearance: none; -webkit-appearance: none; cursor: pointer;
+      padding-right: 32px;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23172b4d' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 10px center;
+    }
     .swatches { display: flex; gap: 6px; margin-top: 8px; }
     .swatch { flex: 1; height: 32px; border-radius: 4px; border: 2px solid transparent; cursor: pointer; }
     .swatch:hover { border-color: #172b4d; }
@@ -40,9 +46,13 @@ var APP_NAME = 'Header & Page Sort';
 
 var t = window.TrelloPowerUp.iframe({ appKey: APP_KEY, appName: APP_NAME });
 
-/* Populate the list dropdown with the board's open lists. */
+/* Populate the list dropdown with a placeholder plus the board's open lists. */
+var sel = document.getElementById('list');
+var ph = document.createElement('option');
+ph.value = ''; ph.textContent = 'Choose a list…';
+ph.disabled = true; ph.selected = true;
+sel.appendChild(ph);
 t.lists('id', 'name').then(function (lists) {
-  var sel = document.getElementById('list');
   lists.forEach(function (l) {
     var o = document.createElement('option');
     o.value = l.id; o.textContent = l.name;
@@ -58,6 +68,7 @@ function createHeader(color) {
   var name = document.getElementById('name').value.trim().toUpperCase();
   var listId = document.getElementById('list').value;
   if (!name) { document.getElementById('name').focus(); return; }
+  if (!listId) { document.getElementById('list').focus(); return; }
 
   var api = t.getRestApi();
   api.getToken()
