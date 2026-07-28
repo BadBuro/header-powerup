@@ -93,29 +93,30 @@ window.TrelloPowerUp.initialize({
   },
 
   'card-badges': function (t) {
-    return t.card('name', 'labels').then(function (card) {
-      if (!isHeader(card)) return [];
-      var label = primaryLabel(card); /* null => the unassigned header */
-      return [{
-        dynamic: function (t2) {
-          return Promise.all([
-            t2.card('id', 'idList'),
-            t2.cards('id', 'name', 'labels', 'idList')
-          ]).then(function (res) {
-            var me = res[0], cards = res[1];
-            var n = cards.filter(function (c) {
-              if (c.idList !== me.idList || c.id === me.id) return false;
-              if (isHeader(c)) return false;
-              if (label) {
-                return (c.labels || []).some(function (l) { return l.id === label.id; });
-              }
-              return (c.labels || []).length === 0; /* unassigned section */
-            }).length;
-            return { text: n + ' in section', color: n > 0 ? 'blue' : null, refresh: 30 };
-          });
+    function sectionCount(me, cards) {
+      var label = primaryLabel(me); /* null => the unassigned header */
+      return cards.filter(function (c) {
+        if (c.idList !== me.idList || c.id === me.id) return false;
+        if (isHeader(c)) return false;
+        if (label) {
+          return (c.labels || []).some(function (l) { return l.id === label.id; });
         }
-      }];
-    });
+        return (c.labels || []).length === 0;
+      }).length;
+    }
+    return t.card('id', 'name', 'labels', 'idList')
+      .then(function (me) {
+        if (!isHeader(me)) return [];
+        return t.cards('id', 'name', 'labels', 'idList').then(function (cards) {
+          var n = sectionCount(me, cards);
+          return [{
+            text: n + ' in section',
+            color: n > 0 ? 'blue' : null,
+            refresh: 30
+          }];
+        });
+      })
+      .catch(function () { return []; });
   }
 
 }, {

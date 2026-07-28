@@ -137,8 +137,25 @@ document.getElementById('go').addEventListener('click', function () {
           });
       }
 
-      return fetch('https://api.trello.com/1/lists/' + listId + '/cards?fields=name,pos,labels&' + auth)
+      return fetch('https://api.trello.com/1/lists/' + listId + '/cards?fields=name,pos,labels,desc&' + auth)
         .then(function (r) { return r.json(); })
+        .then(function (cards) {
+          /* Headers should stay clean: strip any description (e.g. the
+             board's new-card template stamped by Butler). */
+          var cleanups = Promise.resolve();
+          cards.forEach(function (c) {
+            if (isHeader(c) && (c.desc || '').length > 0) {
+              cleanups = cleanups.then(function () {
+                return fetch('https://api.trello.com/1/cards/' + c.id + '?' + auth, {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ desc: '' })
+                });
+              });
+            }
+          });
+          return cleanups.then(function () { return cards; });
+        })
         .then(function (cards) {
           /* --- Reconcile: create any missing section headers. --- */
           var sectionsWithHeader = {};
