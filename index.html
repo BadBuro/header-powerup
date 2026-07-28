@@ -115,7 +115,10 @@ window.TrelloPowerUp.initialize({
           }];
         });
       })
-      .catch(function () { return []; });
+      .catch(function (e) {
+        /* Diagnostic: surface the failure as a red badge. */
+        return [{ text: 'ERR ' + String((e && e.message) || e).slice(0, 30), color: 'red' }];
+      });
   }
 
 }, {
