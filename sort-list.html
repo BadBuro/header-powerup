@@ -143,8 +143,12 @@ document.getElementById('go').addEventListener('click', function () {
           });
       }
 
-      return fetch('https://api.trello.com/1/lists/' + listId + '/cards?fields=name,pos,labels,desc&' + auth)
+      return fetch('https://api.trello.com/1/lists/' + listId + '/cards?fields=name,pos,labels,desc,isTemplate&' + auth)
         .then(function (r) { return r.json(); })
+        .then(function (all) {
+          /* Template cards are invisible to sorting and counts. */
+          return all.filter(function (c) { return !c.isTemplate; });
+        })
         .then(function (cards) {
           /* Headers should stay clean: strip any description (e.g. the
              board's new-card template stamped by Butler). */
