@@ -23,7 +23,9 @@ var APP_NAME = 'Header & Page Sort';
 var COLOR_ORDER = ['green', 'yellow', 'purple', 'orange', 'red', 'blue', 'sky', 'lime', 'pink', 'black'];
 
 function isHeader(card) {
-  var n = (card.name || '').trim().replace(/\s·\s\d+$/, ''); /* ignore count suffix */
+  var n = (card.name || '').trim()
+    .replace(/\s\(\d+\s+Stor(?:y|ies)\)$/, '')
+    .replace(/\s·\s\d+$/, ''); /* ignore count suffixes */
   return n.length > 0 && n.length <= 40 && n === n.toUpperCase() && /[A-Z]/.test(n);
 }
 
