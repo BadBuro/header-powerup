@@ -95,8 +95,7 @@ window.TrelloPowerUp.initialize({
   'card-badges': function (t) {
     return t.card('name', 'labels').then(function (card) {
       if (!isHeader(card)) return [];
-      var label = primaryLabel(card);
-      if (!label) return [];
+      var label = primaryLabel(card); /* null => the unassigned header */
       return [{
         dynamic: function (t2) {
           return Promise.all([
@@ -107,7 +106,10 @@ window.TrelloPowerUp.initialize({
             var n = cards.filter(function (c) {
               if (c.idList !== me.idList || c.id === me.id) return false;
               if (isHeader(c)) return false;
-              return (c.labels || []).some(function (l) { return l.id === label.id; });
+              if (label) {
+                return (c.labels || []).some(function (l) { return l.id === label.id; });
+              }
+              return (c.labels || []).length === 0; /* unassigned section */
             }).length;
             return { text: n + ' in section', color: n > 0 ? 'blue' : null, refresh: 30 };
           });

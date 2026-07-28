@@ -23,7 +23,7 @@
   <label for="list">List to sort</label>
   <select id="list"></select>
   <button id="go" class="primary">Sort by epic</button>
-  <div class="hint">Groups cards into sections by label (color + name) with each section's header card on top. Unlabeled cards go last.</div>
+  <div class="hint">Groups cards into sections by label (color + name), creating any missing section headers automatically. Unlabeled cards gather at the bottom under a gray "EPIC LABEL UNASSIGNED" header.</div>
 
 <script>
 var APP_KEY  = 'e82ae5688936d7c67aef05819e8fb1c9';
@@ -88,17 +88,76 @@ document.getElementById('go').addEventListener('click', function () {
     })
     .then(function (token) {
       var auth = 'key=' + APP_KEY + '&token=' + token;
+
+      function baseColor(color) { return (color || '').replace(/_(light|dark)$/, ''); }
+
+      function makeHeader(name, coverColor, labelId) {
+        return fetch('https://api.trello.com/1/cards?idList=' + listId +
+                     '&name=' + encodeURIComponent(name) + '&pos=bottom&' + auth, { method: 'POST' })
+          .then(function (r) { return r.json(); })
+          .then(function (card) {
+            var reqs = [
+              fetch('https://api.trello.com/1/cards/' + card.id + '?' + auth, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ cover: { color: coverColor, size: 'full' } })
+              })
+            ];
+            if (labelId) {
+              reqs.push(fetch('https://api.trello.com/1/cards/' + card.id + '/idLabels?value=' + labelId + '&' + auth, { method: 'POST' }));
+            }
+            return Promise.all(reqs).then(function () { return card; });
+          });
+      }
+
       return fetch('https://api.trello.com/1/lists/' + listId + '/cards?fields=name,pos,labels&' + auth)
         .then(function (r) { return r.json(); })
         .then(function (cards) {
-          var sorted = cards.slice().sort(sectionCompare);
-          var chain = Promise.resolve();
-          sorted.forEach(function (card, i) {
-            chain = chain.then(function () {
-              return fetch('https://api.trello.com/1/cards/' + card.id + '?pos=' + ((i + 1) * 1024) + '&' + auth, { method: 'PUT' });
+          /* --- Reconcile: create any missing section headers. --- */
+          var sectionsWithHeader = {};
+          var sectionsNeeded = {};
+          var hasUnlabeledCards = false;
+          var hasUnassignedHeader = false;
+
+          cards.forEach(function (c) {
+            var lbl = primaryLabel(c);
+            if (isHeader(c)) {
+              if (lbl) sectionsWithHeader[baseColor(lbl.color) + '|' + (lbl.name || '').toLowerCase()] = true;
+              else hasUnassignedHeader = true;
+            } else {
+              if (lbl) sectionsNeeded[baseColor(lbl.color) + '|' + (lbl.name || '').toLowerCase()] = lbl;
+              else hasUnlabeledCards = true;
+            }
+          });
+
+          var creations = Promise.resolve();
+          Object.keys(sectionsNeeded).forEach(function (key) {
+            if (sectionsWithHeader[key]) return;
+            var lbl = sectionsNeeded[key];
+            var headerName = (lbl.name || baseColor(lbl.color)).toUpperCase();
+            creations = creations.then(function () {
+              return makeHeader(headerName, baseColor(lbl.color), lbl.id)
+                .then(function (card) { cards.push({ id: card.id, name: headerName, pos: card.pos || 9999999, labels: [lbl] }); });
             });
           });
-          return chain;
+          if (hasUnlabeledCards && !hasUnassignedHeader) {
+            creations = creations.then(function () {
+              return makeHeader('EPIC LABEL UNASSIGNED', 'black', null)
+                .then(function (card) { cards.push({ id: card.id, name: 'EPIC LABEL UNASSIGNED', pos: card.pos || 9999999, labels: [] }); });
+            });
+          }
+
+          /* --- Then sort everything into place. --- */
+          return creations.then(function () {
+            var sorted = cards.slice().sort(sectionCompare);
+            var chain = Promise.resolve();
+            sorted.forEach(function (card, i) {
+              chain = chain.then(function () {
+                return fetch('https://api.trello.com/1/cards/' + card.id + '?pos=' + ((i + 1) * 1024) + '&' + auth, { method: 'PUT' });
+              });
+            });
+            return chain;
+          });
         });
     })
     .then(function () { return t.closePopup(); })
