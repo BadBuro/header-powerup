@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Header & Page Sort — Trello Power-Up connector</title>
+  <script src="https://p.trellocdn.com/power-up.min.js"></script>
+</head>
+<body>
+<script>
+/* ============================================================
+   Header & Page Sort — a tiny Trello Power-Up
+   1) "Add header" board button: creates a colored full-cover
+      header card via a popup (name + color), no manual steps.
+   2) "Page order" list sorter: sorts a list into label-color
+      sections with the header card on top of each section.
+   Setup: paste your Trello API key below (see README).
+   ============================================================ */
+
+var APP_KEY  = 'PASTE_YOUR_TRELLO_API_KEY_HERE';
+var APP_NAME = 'Header & Page Sort';
+
+/* Section order = label color order. Adjust to taste. */
+var SECTION_ORDER = ['green', 'yellow', 'purple', 'orange', 'red', 'blue', 'sky', 'lime', 'pink', 'black'];
+
+/* A "header" is a short card whose name is ALL CAPS. */
+function isHeader(card) {
+  var n = (card.name || '').trim();
+  return n.length > 0 && n.length <= 40 && n === n.toUpperCase() && /[A-Z]/.test(n);
+}
+
+function sectionOf(card) {
+  var colors = (card.labels || []).map(function (l) { return l.color; });
+  for (var i = 0; i < SECTION_ORDER.length; i++) {
+    if (colors.indexOf(SECTION_ORDER[i]) !== -1) return i;
+  }
+  return SECTION_ORDER.length; /* unlabeled cards sink to the bottom */
+}
+
+window.TrelloPowerUp.initialize({
+
+  'list-sorters': function (t) {
+    return [{
+      text: 'Page order (headers on top)',
+      callback: function (t, opts) {
+        var sorted = opts.cards.slice().sort(function (a, b) {
+          var sa = sectionOf(a), sb = sectionOf(b);
+          if (sa !== sb) return sa - sb;                     /* group by section color   */
+          var ha = isHeader(a) ? 0 : 1, hb = isHeader(b) ? 0 : 1;
+          if (ha !== hb) return ha - hb;                     /* header tops its section  */
+          return a.pos - b.pos;                              /* keep existing order else */
+        });
+        return { sortedIds: sorted.map(function (c) { return c.id; }) };
+      }
+    }];
+  },
+
+  'board-buttons': function (t) {
+    return [{
+      icon: {
+        dark:  'https://p.trellocdn.com/battleship-grey-icon.png',
+        light: 'https://p.trellocdn.com/battleship-grey-icon.png'
+      },
+      text: 'Add header',
+      callback: function (t) {
+        return t.popup({
+          title: 'Add a header card',
+          url: './add-header.html',
+          height: 260
+        });
+      }
+    }];
+  }
+
+}, {
+  appKey: APP_KEY,
+  appName: APP_NAME
+});
+</script>
+</body>
+</html>
