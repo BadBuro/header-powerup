@@ -68,6 +68,19 @@ window.TrelloPowerUp.initialize({
           height: 260
         });
       }
+    }, {
+      icon: {
+        dark:  'https://badburo.github.io/header-powerup/icon-sort-dark.png',
+        light: 'https://badburo.github.io/header-powerup/icon-sort-light.png'
+      },
+      text: 'Sort Backlog by Epic',
+      callback: function (t) {
+        return t.popup({
+          title: 'Sort Backlog by Epic',
+          url: './sort-list.html',
+          height: 190
+        });
+      }
     }];
   }
 
