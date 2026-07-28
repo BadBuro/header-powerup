@@ -91,18 +91,45 @@ document.getElementById('go').addEventListener('click', function () {
 
       function baseColor(color) { return (color || '').replace(/_(light|dark)$/, ''); }
 
+      var UNASSIGNED_HEX = '#1e1f21'; /* deep charcoal for the unassigned header */
+
+      function hexCover(cardId) {
+        var c = document.createElement('canvas');
+        c.width = 512; c.height = 128;
+        var ctx = c.getContext('2d');
+        ctx.fillStyle = UNASSIGNED_HEX;
+        ctx.fillRect(0, 0, 512, 128);
+        return new Promise(function (res) { c.toBlob(res, 'image/png'); })
+          .then(function (blob) {
+            var fd = new FormData();
+            fd.append('file', blob, 'header-bg.png');
+            return fetch('https://api.trello.com/1/cards/' + cardId + '/attachments?' + auth, { method: 'POST', body: fd });
+          })
+          .then(function (r) { return r.json(); })
+          .then(function (att) {
+            return fetch('https://api.trello.com/1/cards/' + cardId + '?' + auth, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ cover: { idAttachment: att.id, size: 'full', brightness: 'dark' } })
+            });
+          });
+      }
+
       function makeHeader(name, coverColor, labelId) {
         return fetch('https://api.trello.com/1/cards?idList=' + listId +
                      '&name=' + encodeURIComponent(name) + '&pos=bottom&' + auth, { method: 'POST' })
           .then(function (r) { return r.json(); })
           .then(function (card) {
-            var reqs = [
-              fetch('https://api.trello.com/1/cards/' + card.id + '?' + auth, {
+            var reqs = [];
+            if (coverColor === 'custom-dark') {
+              reqs.push(hexCover(card.id));
+            } else {
+              reqs.push(fetch('https://api.trello.com/1/cards/' + card.id + '?' + auth, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ cover: { color: coverColor, size: 'full' } })
-              })
-            ];
+              }));
+            }
             if (labelId) {
               reqs.push(fetch('https://api.trello.com/1/cards/' + card.id + '/idLabels?value=' + labelId + '&' + auth, { method: 'POST' }));
             }
@@ -117,13 +144,13 @@ document.getElementById('go').addEventListener('click', function () {
           var sectionsWithHeader = {};
           var sectionsNeeded = {};
           var hasUnlabeledCards = false;
-          var hasUnassignedHeader = false;
+          var unassignedHeaders = [];
 
           cards.forEach(function (c) {
             var lbl = primaryLabel(c);
             if (isHeader(c)) {
               if (lbl) sectionsWithHeader[baseColor(lbl.color) + '|' + (lbl.name || '').toLowerCase()] = true;
-              else hasUnassignedHeader = true;
+              else unassignedHeaders.push(c);
             } else {
               if (lbl) sectionsNeeded[baseColor(lbl.color) + '|' + (lbl.name || '').toLowerCase()] = lbl;
               else hasUnlabeledCards = true;
@@ -140,10 +167,19 @@ document.getElementById('go').addEventListener('click', function () {
                 .then(function (card) { cards.push({ id: card.id, name: headerName, pos: card.pos || 9999999, labels: [lbl] }); });
             });
           });
-          if (hasUnlabeledCards && !hasUnassignedHeader) {
+          if (hasUnlabeledCards && unassignedHeaders.length === 0) {
             creations = creations.then(function () {
-              return makeHeader('EPIC LABEL UNASSIGNED', 'black', null)
+              return makeHeader('EPIC LABEL UNASSIGNED', 'custom-dark', null)
                 .then(function (card) { cards.push({ id: card.id, name: 'EPIC LABEL UNASSIGNED', pos: card.pos || 9999999, labels: [] }); });
+            });
+          }
+          if (!hasUnlabeledCards && unassignedHeaders.length > 0) {
+            /* No unlabeled cards left: archive the unassigned header(s). */
+            unassignedHeaders.forEach(function (h) {
+              creations = creations.then(function () {
+                return fetch('https://api.trello.com/1/cards/' + h.id + '?closed=true&' + auth, { method: 'PUT' });
+              });
+              cards = cards.filter(function (c) { return c.id !== h.id; });
             });
           }
 
