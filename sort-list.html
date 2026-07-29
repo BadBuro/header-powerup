@@ -97,7 +97,7 @@ document.getElementById('go').addEventListener('click', function () {
 
       function baseColor(color) { return (color || '').replace(/_(light|dark)$/, ''); }
 
-      var UNASSIGNED_HEX = '#1e1f21'; /* deep charcoal for the unassigned header */
+      var UNASSIGNED_HEX = '#000000'; /* black for the unassigned header */
 
       function hexCover(cardId) {
         var c = document.createElement('canvas');
@@ -206,6 +206,7 @@ document.getElementById('go').addEventListener('click', function () {
                   });
                   if (old) {
                     return fetch('https://api.trello.com/1/cards/' + old.id + '?closed=false&' + auth, { method: 'PUT' })
+                      .then(function () { return hexCover(old.id); }) /* re-apply cover so color changes take effect */
                       .then(function () { cards.push({ id: old.id, name: 'NO LABEL', pos: 9999999, labels: [] }); });
                   }
                   return makeHeader('NO LABEL', 'custom-dark', null)
