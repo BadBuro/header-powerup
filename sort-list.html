@@ -22,8 +22,8 @@
 <body>
   <label for="list">List to sort</label>
   <select id="list"></select>
-  <button id="go" class="primary">Sort by epic</button>
-  <div class="hint">Groups cards into sections by label (color + name), creating any missing section headers automatically. Unlabeled cards gather at the bottom under a gray "EPIC LABEL UNASSIGNED" header.</div>
+  <button id="go" class="primary">Sort by Epic</button>
+  <div class="hint">Groups cards into sections by label (color + name), creating any missing section headers automatically. Unlabeled cards gather at the bottom under a black "NO LABEL" header.</div>
 
 <script>
 var APP_KEY  = 'e82ae5688936d7c67aef05819e8fb1c9';
@@ -268,7 +268,7 @@ document.getElementById('go').addEventListener('click', function () {
     })
     .then(function () { return t.closePopup(); })
     .catch(function (err) {
-      btn.disabled = false; btn.textContent = 'Sort by epic';
+      btn.disabled = false; btn.textContent = 'Sort by Epic';
       document.querySelector('.hint').textContent = 'Error: ' + (err.message || err);
     });
 });
